@@ -1,0 +1,17 @@
+import 'dotenv/config';
+import fs from 'node:fs';
+import path from 'node:path';
+import { pool } from './client';
+
+async function main() {
+  const sql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
+  console.log('Applying schema...');
+  await pool.query(sql);
+  console.log('Schema applied.');
+  await pool.end();
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body { height: 100%; }
+body {
+  @apply text-slate-900 antialiased;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(59,130,246,0.15), transparent 60%),
+    radial-gradient(1000px 600px at 90% 110%, rgba(139,92,246,0.12), transparent 60%),
+    #f8fafc;
+  background-attachment: fixed;
+}
+
+.card { @apply bg-white border border-slate-200 rounded-xl shadow-sm; }
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-medium
+         bg-gradient-to-r from-brand-600 to-violet-600 text-white shadow-md
+         hover:shadow-lg hover:from-brand-700 hover:to-violet-700 transition disabled:opacity-50 disabled:cursor-not-allowed;
+}
+.btn-secondary {
+  @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-medium
+         border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition;
+}
+.input {
+  @apply w-full border border-slate-300 rounded-lg px-3 py-2 bg-white
+         focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition;
+}
+
+/* Citation markers in markdown output */
+.citation {
+  @apply inline-flex items-center justify-center align-super text-[0.65rem] font-medium
+         bg-brand-100 text-brand-700 rounded px-1.5 ml-0.5 cursor-pointer hover:bg-brand-200;
+  min-width: 1.25rem;
+  height: 1.1rem;
+}
