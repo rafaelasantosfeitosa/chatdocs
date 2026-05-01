@@ -15,7 +15,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const user = await currentUser();
   await ensureUser(userId, user?.emailAddresses[0]?.emailAddress ?? null);
@@ -108,6 +108,7 @@ export async function POST(req: NextRequest) {
           document_id: c.document_id,
           page: c.page,
           filename: c.filename,
+          snippet: c.content.slice(0, 200),
         }));
         try {
           await pool.query(

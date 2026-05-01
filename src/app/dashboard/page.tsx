@@ -9,7 +9,7 @@ import DocumentsPanel from './_components/DocumentsPanel';
 import UpgradeButton from './_components/UpgradeButton';
 
 export default async function DashboardPage() {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) redirect('/');
   await ensureUser(userId, null);
 

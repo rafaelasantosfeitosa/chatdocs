@@ -9,7 +9,7 @@ export const maxDuration = 60;
 const MAX_BYTES = 25 * 1024 * 1024; // 25 MB
 
 export async function POST(req: NextRequest) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const user = await currentUser();
   await ensureUser(userId, user?.emailAddresses[0]?.emailAddress ?? null);

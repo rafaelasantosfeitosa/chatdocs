@@ -4,7 +4,7 @@ import { pool } from '@/db/client';
 import ChatClient, { type ChatMessage } from '../_components/ChatClient';
 
 export default async function ChatPage({ params }: { params: { id: string } }) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) redirect('/');
 
   const conv = await pool.query('SELECT id FROM conversations WHERE id = $1 AND user_id = $2', [params.id, userId]);

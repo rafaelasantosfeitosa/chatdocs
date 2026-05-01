@@ -13,19 +13,18 @@
     "db:push": "tsx --env-file=.env.local src/db/applySchema.ts"
   },
   "dependencies": {
-    "@clerk/nextjs": "^5.1.5",
+    "@clerk/nextjs": "^6.39.3",
     "@google/generative-ai": "^0.21.0",
-    "ai": "^3.2.0",
+    "ai": "^6.0.172",
     "clsx": "^2.1.1",
     "lucide-react": "^0.383.0",
-    "next": "14.2.3",
+    "next": "^14.2.35",
     "pdf-parse": "^1.1.1",
     "pg": "^8.11.5",
     "react": "^18",
     "react-dom": "^18",
     "react-markdown": "^9.0.1",
     "stripe": "^16.0.0",
-    "uuid": "^9.0.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -34,10 +33,9 @@
     "@types/pg": "^8.11.6",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "@types/uuid": "^9.0.8",
     "autoprefixer": "^10.0.1",
     "dotenv": "^17.4.2",
-    "postcss": "^8",
+    "postcss": "^8.5.13",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.11.0",
     "typescript": "^5"

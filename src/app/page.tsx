@@ -57,7 +57,7 @@ export default function Home() {
       </section>
 
       <footer className="border-t border-slate-200 py-8 text-center text-sm text-slate-500">
-        Next.js · pgvector · OpenRouter · Stripe · Clerk
+        Next.js · pgvector · Gemini · Stripe · Clerk
       </footer>
     </main>
   );

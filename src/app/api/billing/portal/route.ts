@@ -6,7 +6,7 @@ import { stripe } from '@/lib/stripe';
 export const runtime = 'nodejs';
 
 export async function POST() {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const r = await pool.query<{ stripe_customer: string | null }>(

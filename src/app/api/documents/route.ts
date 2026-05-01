@@ -3,7 +3,7 @@ import { auth, currentUser } from '@clerk/nextjs/server';
 import { pool, ensureUser } from '@/db/client';
 
 export async function GET() {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const user = await currentUser();
   await ensureUser(userId, user?.emailAddresses[0]?.emailAddress ?? null);

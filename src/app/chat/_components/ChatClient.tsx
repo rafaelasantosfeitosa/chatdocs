@@ -184,25 +184,40 @@ function MessageBubble({ message, onCitationClick }: {
   );
 }
 
+const CITE_REGEX = /\[\^(?:chunk-)?(\d+)\]/g;
+
 function renderWithCitations(
   text: string,
   citations: Citation[],
   onClick: (c: Citation) => void
 ): React.ReactNode {
-  const parts = text.split(/(\[\^chunk-\d+\])/g);
   const lookup = new Map<number, Citation>(citations.map((c) => [c.ref, c]));
+  const transformed = text.replace(CITE_REGEX, (_, n) =>
+    lookup.has(Number(n)) ? `[${n}](#cite-${n})` : ''
+  );
   return (
     <ReactMarkdown
       components={{
         p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+        a: ({ href, children }) => {
+          const m = href?.match(/^#cite-(\d+)$/);
+          if (!m) return <a href={href}>{children}</a>;
+          const c = lookup.get(Number(m[1]));
+          if (!c) return null;
+          return (
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); onClick(c); }}
+              className="citation"
+              aria-label={`Citation ${m[1]}: ${c.filename}${c.page ? `, page ${c.page}` : ''}`}
+            >
+              {m[1]}
+            </button>
+          );
+        },
       }}
     >
-      {/* Replace markers with footnote-style inline references handled below.
-          We keep ReactMarkdown for normal markdown; citations are simple post-process. */}
-      {text.replace(/\[\^chunk-(\d+)\]/g, (_, n) => {
-        const c = lookup.get(Number(n));
-        return c ? ` ⟦${n}⟧` : '';
-      })}
+      {transformed}
     </ReactMarkdown>
   );
 }
