@@ -1,17 +1,8 @@
-import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { RetrievedChunk } from './retriever';
 
-const client = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY,
-  baseURL: 'https://openrouter.ai/api/v1',
-  defaultHeaders: {
-    'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-    'X-Title': 'ChatDocs',
-  },
-});
-
-const MODEL = process.env.LLM_MODEL || 'anthropic/claude-3.5-sonnet';
-const FALLBACK = process.env.LLM_FALLBACK_MODEL || 'openai/gpt-4o-mini';
+const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const MODEL = process.env.LLM_MODEL || 'gemini-2.5-flash-lite';
 
 const SYSTEM_PROMPT = `You are ChatDocs, an assistant that answers questions strictly based on the provided document chunks.
 
@@ -21,50 +12,47 @@ Rules:
 3. Multiple citations: [^chunk-1][^chunk-2]. Be precise — only cite chunks that actually support the claim.
 4. Be concise. No preamble. No "Based on the documents..." filler.`;
 
+export type ChatMessage = { role: 'user' | 'assistant'; content: string };
+
 interface BuildPromptInput {
   question: string;
   chunks: RetrievedChunk[];
-  history: { role: 'user' | 'assistant'; content: string }[];
+  history: ChatMessage[];
 }
 
-export function buildMessages({ question, chunks, history }: BuildPromptInput) {
+interface PreparedPrompt {
+  systemInstruction: string;
+  history: { role: 'user' | 'model'; parts: { text: string }[] }[];
+  userMessage: string;
+}
+
+export function buildMessages({ question, chunks, history }: BuildPromptInput): PreparedPrompt {
   const context = chunks
     .map((c, i) => `[chunk-${i + 1}] (source: "${c.filename}"${c.page ? `, p.${c.page}` : ''})\n${c.content}`)
     .join('\n\n');
 
-  return [
-    { role: 'system' as const, content: SYSTEM_PROMPT },
-    { role: 'system' as const, content: `Document chunks:\n\n${context}` },
-    ...history,
-    { role: 'user' as const, content: question },
-  ];
+  const systemInstruction = `${SYSTEM_PROMPT}\n\nDocument chunks:\n\n${context}`;
+
+  const mappedHistory = history.map((m) => ({
+    role: m.role === 'assistant' ? ('model' as const) : ('user' as const),
+    parts: [{ text: m.content }],
+  }));
+
+  return { systemInstruction, history: mappedHistory, userMessage: question };
 }
 
-/**
- * Streams completion. Falls back to a cheaper model on 5xx/429 from primary.
- */
-export async function streamCompletion(
-  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
-) {
-  try {
-    return await client.chat.completions.create({
-      model: MODEL,
-      messages,
-      stream: true,
-      temperature: 0.2,
-    });
-  } catch (err: any) {
-    const code = err?.status;
-    if (code === 429 || (code && code >= 500)) {
-      console.warn(`Primary model ${MODEL} failed (${code}), falling back to ${FALLBACK}`);
-      return await client.chat.completions.create({
-        model: FALLBACK,
-        messages,
-        stream: true,
-        temperature: 0.2,
-      });
-    }
-    throw err;
+/** Streams completion from Gemini. Yields text deltas. */
+export async function* streamCompletion(prepared: PreparedPrompt): AsyncGenerator<string> {
+  const model = genai.getGenerativeModel({
+    model: MODEL,
+    systemInstruction: prepared.systemInstruction,
+    generationConfig: { temperature: 0.2 },
+  });
+  const chat = model.startChat({ history: prepared.history });
+  const result = await chat.sendMessageStream(prepared.userMessage);
+  for await (const chunk of result.stream) {
+    const text = chunk.text();
+    if (text) yield text;
   }
 }
 

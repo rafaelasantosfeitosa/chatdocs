@@ -38,3 +38,7 @@ next-env.d.ts
 
 # Uploads (dev)
 uploads/
+
+# Playwright MCP smoke-test artifacts
+.playwright-mcp/
+smoke-*.png

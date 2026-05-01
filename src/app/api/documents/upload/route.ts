@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
 import { auth, currentUser } from '@clerk/nextjs/server';
 import { pool, ensureUser } from '@/db/client';
 import { ingestPdf } from '@/rag/ingest';
@@ -27,23 +26,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Only PDF files are supported' }, { status: 415 });
   }
 
-  // Upload to Vercel Blob (or skip if not configured — useful in dev).
-  let blobUrl = '';
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
-    const blob = await put(`documents/${userId}/${Date.now()}-${file.name}`, file, {
-      access: 'public',
-      addRandomSuffix: false,
-    });
-    blobUrl = blob.url;
-  }
-
   const buffer = Buffer.from(await file.arrayBuffer());
 
-  // Insert document row first so we have an ID for the chunks.
   const docResult = await pool.query<{ id: string }>(
-    `INSERT INTO documents (user_id, filename, blob_url, bytes, status)
+    `INSERT INTO documents (user_id, filename, file_data, bytes, status)
      VALUES ($1, $2, $3, $4, 'processing') RETURNING id`,
-    [userId, file.name, blobUrl, file.size]
+    [userId, file.name, buffer, file.size]
   );
   const documentId = docResult.rows[0].id;
 

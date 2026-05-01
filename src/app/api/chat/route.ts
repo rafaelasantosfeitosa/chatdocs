@@ -10,7 +10,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 const bodySchema = z.object({
-  conversation_id: z.string().uuid().optional(),
+  conversation_id: z.string().uuid().nullish(),
   message: z.string().min(1).max(2000),
 });
 
@@ -70,8 +70,8 @@ export async function POST(req: NextRequest) {
   );
   const history = histRes.rows.reverse();
 
-  const messages = buildMessages({ question: parsed.data.message, chunks, history });
-  const stream = await streamCompletion(messages);
+  const prepared = buildMessages({ question: parsed.data.message, chunks, history });
+  const stream = streamCompletion(prepared);
 
   // Stream tokens to client. After the stream ends, persist assistant message + citations.
   let fullText = '';
@@ -91,8 +91,7 @@ export async function POST(req: NextRequest) {
       controller.enqueue(encoder.encode(`event: meta\ndata: ${JSON.stringify({ conversation_id: conversationId, chunks: meta })}\n\n`));
 
       try {
-        for await (const part of stream) {
-          const delta = part.choices?.[0]?.delta?.content || '';
+        for await (const delta of stream) {
           if (delta) {
             fullText += delta;
             controller.enqueue(encoder.encode(`event: token\ndata: ${JSON.stringify({ delta })}\n\n`));

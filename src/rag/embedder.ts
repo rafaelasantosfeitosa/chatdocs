@@ -1,24 +1,45 @@
-import OpenAI from 'openai';
+const API_KEY = process.env.GEMINI_API_KEY || '';
+const MODEL = process.env.EMBEDDING_MODEL || 'gemini-embedding-001';
+const DIM = 768;
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const MODEL = process.env.EMBEDDING_MODEL || 'text-embedding-3-small';
+type TaskType = 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY';
 
-/** Embed a batch of texts. Returns vectors aligned to the input order. */
-export async function embedTexts(texts: string[]): Promise<number[][]> {
-  if (!texts.length) return [];
-  // OpenAI accepts up to 2048 inputs per request; we batch defensively.
-  const BATCH = 96;
-  const all: number[][] = [];
-  for (let i = 0; i < texts.length; i += BATCH) {
-    const slice = texts.slice(i, i + BATCH);
-    const r = await openai.embeddings.create({ model: MODEL, input: slice });
-    for (const e of r.data) all.push(e.embedding);
+async function embedOne(text: string, taskType: TaskType): Promise<number[]> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:embedContent?key=${API_KEY}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      content: { parts: [{ text }] },
+      taskType,
+      outputDimensionality: DIM,
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Gemini embed ${res.status}: ${body.slice(0, 300)}`);
   }
-  return all;
+  const json = (await res.json()) as { embedding: { values: number[] } };
+  return json.embedding.values;
+}
+
+export async function embedTexts(
+  texts: string[],
+  taskType: TaskType = 'RETRIEVAL_DOCUMENT'
+): Promise<number[][]> {
+  if (!texts.length) return [];
+  const CONCURRENCY = 5;
+  const out: number[][] = new Array(texts.length);
+  for (let i = 0; i < texts.length; i += CONCURRENCY) {
+    const slice = texts.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(slice.map((t) => embedOne(t, taskType)));
+    for (let j = 0; j < results.length; j++) out[i + j] = results[j];
+  }
+  return out;
 }
 
 export async function embedQuery(query: string): Promise<number[]> {
-  const [v] = await embedTexts([query]);
+  const [v] = await embedTexts([query], 'RETRIEVAL_QUERY');
   return v;
 }
 
