@@ -42,3 +42,7 @@ uploads/
 # Playwright MCP smoke-test artifacts
 .playwright-mcp/
 smoke-*.png
+prod-*.png
+
+# Local Claude Code state
+.claude/
