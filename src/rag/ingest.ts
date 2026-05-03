@@ -9,6 +9,20 @@ interface IngestResult {
   numPages: number;
 }
 
+export type IngestErrorCode =
+  | 'PDF_ENCRYPTED'
+  | 'PDF_INVALID'
+  | 'PDF_NO_TEXT';
+
+export class IngestError extends Error {
+  code: IngestErrorCode;
+  constructor(code: IngestErrorCode, message: string) {
+    super(message);
+    this.code = code;
+    this.name = 'IngestError';
+  }
+}
+
 /**
  * End-to-end ingest: parse PDF buffer → chunk → embed → persist.
  * Caller is responsible for inserting the documents row first (status=pending)
@@ -19,7 +33,16 @@ export async function ingestPdf(
   userId: string,
   buffer: Buffer
 ): Promise<IngestResult> {
-  const parsed = await pdf(buffer);
+  let parsed: Awaited<ReturnType<typeof pdf>>;
+  try {
+    parsed = await pdf(buffer);
+  } catch (err: any) {
+    const msg = String(err?.message || err).toLowerCase();
+    if (msg.includes('password') || msg.includes('encrypted')) {
+      throw new IngestError('PDF_ENCRYPTED', 'This PDF is password-protected. Remove the password and try again.');
+    }
+    throw new IngestError('PDF_INVALID', 'Could not parse this file as a PDF. The file may be corrupted or not a real PDF.');
+  }
   const numPages = parsed.numpages;
 
   // pdf-parse gives us the full text concatenated. We approximate per-page by
@@ -28,7 +51,10 @@ export async function ingestPdf(
   const chunks = chunkText(pages);
 
   if (!chunks.length) {
-    throw new Error('No extractable text found in PDF');
+    throw new IngestError(
+      'PDF_NO_TEXT',
+      'No extractable text found. Scanned or image-only PDFs are not supported — upload a PDF with selectable text.'
+    );
   }
 
   const embeddings = await embedTexts(chunks.map((c) => c.content));

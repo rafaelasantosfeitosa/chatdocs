@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, currentUser } from '@clerk/nextjs/server';
 import { pool, ensureUser } from '@/db/client';
-import { ingestPdf } from '@/rag/ingest';
+import { ingestPdf, IngestError } from '@/rag/ingest';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -39,11 +39,18 @@ export async function POST(req: NextRequest) {
     const result = await ingestPdf(documentId, userId, buffer);
     return NextResponse.json({ data: { id: documentId, ...result } });
   } catch (err: any) {
+    const isIngestErr = err instanceof IngestError;
+    const userMessage = isIngestErr
+      ? err.message
+      : 'Ingest failed unexpectedly. Try again or use a different PDF.';
     await pool.query(
       `UPDATE documents SET status = 'failed', error = $1 WHERE id = $2`,
-      [String(err?.message || err).slice(0, 500), documentId]
+      [userMessage.slice(0, 500), documentId]
     );
-    console.error('Ingest failed:', err);
-    return NextResponse.json({ error: 'Ingest failed', detail: String(err?.message || err) }, { status: 500 });
+    if (!isIngestErr) console.error('Unexpected ingest failure:', err);
+    return NextResponse.json(
+      { error: userMessage, code: isIngestErr ? err.code : 'UNKNOWN' },
+      { status: isIngestErr ? 422 : 500 }
+    );
   }
 }
