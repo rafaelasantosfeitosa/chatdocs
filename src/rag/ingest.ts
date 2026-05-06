@@ -12,7 +12,10 @@ interface IngestResult {
 export type IngestErrorCode =
   | 'PDF_ENCRYPTED'
   | 'PDF_INVALID'
-  | 'PDF_NO_TEXT';
+  | 'PDF_NO_TEXT'
+  | 'PDF_TOO_MANY_PAGES';
+
+const MAX_PAGES = 500;
 
 export class IngestError extends Error {
   code: IngestErrorCode;
@@ -35,7 +38,7 @@ export async function ingestPdf(
 ): Promise<IngestResult> {
   let parsed: Awaited<ReturnType<typeof pdf>>;
   try {
-    parsed = await pdf(buffer);
+    parsed = await pdf(buffer, { max: MAX_PAGES + 1 });
   } catch (err: any) {
     const msg = String(err?.message || err).toLowerCase();
     if (msg.includes('password') || msg.includes('encrypted')) {
@@ -44,6 +47,12 @@ export async function ingestPdf(
     throw new IngestError('PDF_INVALID', 'Could not parse this file as a PDF. The file may be corrupted or not a real PDF.');
   }
   const numPages = parsed.numpages;
+  if (numPages > MAX_PAGES) {
+    throw new IngestError(
+      'PDF_TOO_MANY_PAGES',
+      `PDF has ${numPages} pages; max supported is ${MAX_PAGES}. Split the document and upload smaller files.`
+    );
+  }
 
   // pdf-parse gives us the full text concatenated. We approximate per-page by
   // splitting on form-feed (\f), which pdf-parse uses as page separator.

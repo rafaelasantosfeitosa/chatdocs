@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { pool, ensureUser } from '@/db/client';
 import { retrieveChunks } from '@/rag/retriever';
 import { buildMessages, streamCompletion } from '@/rag/llm';
-import { getUserUsage, recordQuery } from '@/lib/usage';
+import { reserveQuery } from '@/lib/usage';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -26,10 +26,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 });
   }
 
-  const usage = await getUserUsage(userId);
-  if (usage.exceeded) {
+  // Atomically check + consume one quota slot. Prevents concurrent requests
+  // from bypassing the free-tier limit by reading stale counts in parallel.
+  const reservation = await reserveQuery(userId, { route: 'chat' });
+  if (!reservation.reserved) {
     return NextResponse.json(
-      { error: 'Free-tier query limit reached. Upgrade to Pro for unlimited queries.', usage },
+      { error: 'Free-tier query limit reached. Upgrade to Pro for unlimited queries.', usage: reservation.status },
       { status: 402 }
     );
   }
@@ -116,7 +118,6 @@ export async function POST(req: NextRequest) {
              VALUES ($1, $2, 'assistant', $3, $4)`,
             [conversationId, userId, fullText, JSON.stringify(citations)]
           );
-          await recordQuery(userId, { conversation_id: conversationId });
         } catch (e) {
           console.error('Persist after stream failed:', e);
         }

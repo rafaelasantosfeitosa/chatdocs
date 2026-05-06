@@ -28,6 +28,11 @@ export async function POST(req: NextRequest) {
 
   const buffer = Buffer.from(await file.arrayBuffer());
 
+  // Magic-byte check: real PDFs start with "%PDF-".
+  if (buffer.length < 5 || buffer.slice(0, 5).toString('utf8') !== '%PDF-') {
+    return NextResponse.json({ error: 'File is not a valid PDF (missing %PDF- header)' }, { status: 415 });
+  }
+
   const docResult = await pool.query<{ id: string }>(
     `INSERT INTO documents (user_id, filename, file_data, bytes, status)
      VALUES ($1, $2, $3, $4, 'processing') RETURNING id`,
