@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Send, ArrowLeft, FileText, Loader2 } from 'lucide-react';
+import { Send, ArrowLeft, FileText, Loader2, Plus, Trash2, MessageSquare } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 export interface Citation {
@@ -27,6 +27,12 @@ interface Props {
   initialMessages: ChatMessage[];
 }
 
+interface ConversationSummary {
+  id: string;
+  title: string;
+  created_at: string;
+}
+
 export default function ChatClient({ initialConversationId, initialMessages }: Props) {
   const router = useRouter();
   const [conversationId, setConversationId] = useState<string | null>(initialConversationId);
@@ -35,7 +41,22 @@ export default function ChatClient({ initialConversationId, initialMessages }: P
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openCitation, setOpenCitation] = useState<Citation | null>(null);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const loadConversations = useCallback(async () => {
+    try {
+      const res = await fetch('/api/conversations');
+      if (!res.ok) return;
+      const j = await res.json();
+      setConversations(j.data || []);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => { loadConversations(); }, [loadConversations]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -111,17 +132,90 @@ export default function ChatClient({ initialConversationId, initialMessages }: P
     } finally {
       setStreaming(false);
       router.refresh();
+      loadConversations();
     }
-  }, [input, streaming, conversationId, router]);
+  }, [input, streaming, conversationId, router, loadConversations]);
+
+  const handleDelete = useCallback(async (id: string) => {
+    if (!confirm('Delete this conversation? This cannot be undone.')) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/conversations/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setError(j.error || 'Delete failed');
+        return;
+      }
+      setConversations((curr) => curr.filter((c) => c.id !== id));
+      if (id === conversationId) {
+        setConversationId(null);
+        setMessages([]);
+        window.history.replaceState(null, '', '/chat');
+        router.refresh();
+      }
+    } finally {
+      setDeletingId(null);
+    }
+  }, [conversationId, router]);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex">
+      <aside className="hidden md:flex md:flex-col w-64 border-r border-slate-200 bg-white/60 backdrop-blur">
+        <div className="p-4 border-b border-slate-200">
+          <Link href="/dashboard" className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-900 mb-3">
+            <ArrowLeft size={12} /> Dashboard
+          </Link>
+          <Link
+            href="/chat"
+            onClick={() => {
+              setConversationId(null);
+              setMessages([]);
+            }}
+            className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border border-slate-300 bg-white hover:bg-slate-50 transition"
+          >
+            <Plus size={14} /> New chat
+          </Link>
+        </div>
+        <nav className="flex-1 overflow-y-auto p-2 space-y-1">
+          {conversations.length === 0 && (
+            <p className="text-xs text-slate-400 px-2 py-3">No conversations yet.</p>
+          )}
+          {conversations.map((c) => {
+            const active = c.id === conversationId;
+            const busy = deletingId === c.id;
+            return (
+              <div
+                key={c.id}
+                className={`group flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm transition ${
+                  active ? 'bg-brand-50 text-brand-700' : 'text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <Link href={`/chat/${c.id}`} className="flex-1 min-w-0 inline-flex items-center gap-2">
+                  <MessageSquare size={14} className="shrink-0 opacity-60" />
+                  <span className="truncate">{c.title || 'Untitled'}</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(c.id)}
+                  disabled={busy}
+                  aria-label="Delete conversation"
+                  className="shrink-0 p-1 rounded text-slate-400 opacity-0 group-hover:opacity-100 hover:text-red-600 hover:bg-red-50 transition disabled:opacity-50"
+                >
+                  {busy ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                </button>
+              </div>
+            );
+          })}
+        </nav>
+      </aside>
+
+      <div className="flex-1 min-w-0 flex flex-col">
       <header className="px-6 py-4 border-b border-slate-200 bg-white/80 backdrop-blur sticky top-0 z-10">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <Link href="/dashboard" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900">
+          <Link href="/dashboard" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900 md:hidden">
             <ArrowLeft size={14} /> Dashboard
           </Link>
-          <div className="text-sm text-slate-500">{streaming ? 'Thinking…' : 'Ready'}</div>
+          <div className="text-sm text-slate-500 ml-auto">{streaming ? 'Thinking…' : 'Ready'}</div>
         </div>
       </header>
 
@@ -159,6 +253,7 @@ export default function ChatClient({ initialConversationId, initialMessages }: P
       </form>
 
       {openCitation && <CitationDialog citation={openCitation} onClose={() => setOpenCitation(null)} />}
+      </div>
     </div>
   );
 }
