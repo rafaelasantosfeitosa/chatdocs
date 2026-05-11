@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, currentUser } from '@clerk/nextjs/server';
 import { z } from 'zod';
 import { pool, ensureUser } from '@/db/client';
-import { retrieveChunks } from '@/rag/retriever';
+import { retrieveChunks, cleanSnippet } from '@/rag/retriever';
 import { buildMessages, streamCompletion } from '@/rag/llm';
 import { reserveQuery } from '@/lib/usage';
 
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
         document_id: c.document_id,
         filename: c.filename,
         page: c.page,
-        snippet: c.content.slice(0, 200),
+        snippet: cleanSnippet(c.content),
       }));
       controller.enqueue(encoder.encode(`event: meta\ndata: ${JSON.stringify({ conversation_id: conversationId, chunks: meta })}\n\n`));
 
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
           document_id: c.document_id,
           page: c.page,
           filename: c.filename,
-          snippet: c.content.slice(0, 200),
+          snippet: cleanSnippet(c.content),
         }));
         try {
           await pool.query(

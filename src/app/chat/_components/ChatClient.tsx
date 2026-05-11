@@ -232,9 +232,9 @@ function CitationDialog({ citation, onClose }: { citation: Citation; onClose: ()
         </div>
         {citation.page && <p className="text-xs text-slate-500 mb-3">Page {citation.page}</p>}
         {citation.snippet && (
-          <p className="text-sm text-slate-700 bg-slate-50 p-3 rounded border border-slate-200 italic">
-            …{citation.snippet}…
-          </p>
+          <blockquote className="text-sm text-slate-700 bg-slate-50 p-3 rounded border-l-4 border-brand-500 whitespace-pre-line leading-relaxed">
+            {citation.snippet}
+          </blockquote>
         )}
         <button onClick={onClose} className="btn-secondary mt-4 w-full">Close</button>
       </div>
